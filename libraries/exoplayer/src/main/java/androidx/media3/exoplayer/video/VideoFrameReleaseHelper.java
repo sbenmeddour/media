@@ -49,6 +49,12 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 @UnstableApi
 public final class VideoFrameReleaseHelper {
 
+  public interface OnFrameRateEstimatedListener {
+    void onNewFrameRate(final float value);
+  }
+
+  @Nullable  public static OnFrameRateEstimatedListener listener;
+
   private static final String TAG = "VideoFrameReleaseHelper";
 
   /**
@@ -298,12 +304,7 @@ public final class VideoFrameReleaseHelper {
    * called to update the surface.
    */
   private void updateSurfaceMediaFrameRate() {
-    if (Util.SDK_INT < 30 || surface == null) {
-      return;
-    }
-
-    float candidateFrameRate =
-        frameRateEstimator.isSynced() ? frameRateEstimator.getFrameRate() : formatFrameRate;
+    float candidateFrameRate = frameRateEstimator.isSynced() ? frameRateEstimator.getFrameRate() : formatFrameRate;
     if (candidateFrameRate == surfaceMediaFrameRate) {
       return;
     }
@@ -346,18 +347,20 @@ public final class VideoFrameReleaseHelper {
    *     unchanged.
    */
   private void updateSurfacePlaybackFrameRate(boolean forceUpdate) {
-    if (Util.SDK_INT < 30
-        || surface == null
-        || changeFrameRateStrategy == C.VIDEO_CHANGE_FRAME_RATE_STRATEGY_OFF) {
-      return;
-    }
+    final VideoFrameReleaseHelper.OnFrameRateEstimatedListener listener = VideoFrameReleaseHelper.listener;
+
+
 
     float surfacePlaybackFrameRate = 0;
     if (started && surfaceMediaFrameRate != Format.NO_VALUE) {
       surfacePlaybackFrameRate = surfaceMediaFrameRate * playbackSpeed;
     }
+    if (listener != null) listener.onNewFrameRate(surfacePlaybackFrameRate);
     // We always set the frame-rate if we have a new surface, since we have no way of knowing what
     // it might have been set to previously.
+    if (Util.SDK_INT < 30 || surface == null || changeFrameRateStrategy == C.VIDEO_CHANGE_FRAME_RATE_STRATEGY_OFF) {
+      return;
+    }
     if (!forceUpdate && this.surfacePlaybackFrameRate == surfacePlaybackFrameRate) {
       return;
     }
@@ -372,6 +375,10 @@ public final class VideoFrameReleaseHelper {
    * C#VIDEO_CHANGE_FRAME_RATE_STRATEGY_OFF}.
    */
   private void clearSurfaceFrameRate() {
+    final VideoFrameReleaseHelper.OnFrameRateEstimatedListener listener = VideoFrameReleaseHelper.listener;
+    if (listener != null) {
+      listener.onNewFrameRate(0f);
+    }
     if (Util.SDK_INT < 30
         || surface == null
         || changeFrameRateStrategy == C.VIDEO_CHANGE_FRAME_RATE_STRATEGY_OFF
