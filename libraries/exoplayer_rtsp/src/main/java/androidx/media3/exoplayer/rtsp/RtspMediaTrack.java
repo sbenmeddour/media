@@ -492,6 +492,7 @@ import com.google.common.collect.ImmutableMap;
               spsData.profileTierLevel.constraintBytes,
               spsData.profileTierLevel.generalLevelIdc));
     }
+    formatBuilder.setFrameRate(spsData.framerate);
   }
 
   /**

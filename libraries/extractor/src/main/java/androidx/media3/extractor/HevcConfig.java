@@ -100,6 +100,7 @@ public final class HevcConfig {
       int height = Format.NO_VALUE;
       int bitdepthLuma = Format.NO_VALUE;
       int bitdepthChroma = Format.NO_VALUE;
+      float framerate = Format.NO_VALUE;
       @C.ColorSpace int colorSpace = Format.NO_VALUE;
       @C.ColorRange int colorRange = Format.NO_VALUE;
       @C.ColorTransfer int colorTransfer = Format.NO_VALUE;
@@ -124,13 +125,19 @@ public final class HevcConfig {
           System.arraycopy(
               data.getData(), data.getPosition(), buffer, bufferPosition, nalUnitLength);
           if (nalUnitType == NalUnitUtil.H265_NAL_UNIT_TYPE_VPS && j == 0) {
-            currentVpsData =
-                NalUnitUtil.parseH265VpsNalUnit(
-                    buffer, bufferPosition, bufferPosition + nalUnitLength);
+            currentVpsData = NalUnitUtil.parseH265VpsNalUnit(
+                buffer,
+                bufferPosition,
+                bufferPosition + nalUnitLength
+            );
           } else if (nalUnitType == NalUnitUtil.H265_NAL_UNIT_TYPE_SPS && j == 0) {
-            NalUnitUtil.H265SpsData spsData =
-                NalUnitUtil.parseH265SpsNalUnit(
-                    buffer, bufferPosition, bufferPosition + nalUnitLength, currentVpsData);
+            NalUnitUtil.H265SpsData spsData = NalUnitUtil.parseH265SpsNalUnit(
+                buffer,
+                bufferPosition,
+                bufferPosition + nalUnitLength,
+                currentVpsData
+            );
+            framerate = spsData.framerate;
             width = spsData.width;
             height = spsData.height;
             bitdepthLuma = spsData.bitDepthLumaMinus8 + 8;
@@ -183,7 +190,9 @@ public final class HevcConfig {
           pixelWidthHeightRatio,
           maxNumReorderPics,
           codecs,
-          currentVpsData);
+          currentVpsData,
+          framerate
+      );
     } catch (ArrayIndexOutOfBoundsException e) {
       throw ParserException.createForMalformedContainer(
           "Error parsing" + (layered ? "L-HEVC config" : "HEVC config"), e);
@@ -255,6 +264,8 @@ public final class HevcConfig {
   /** The parsed representation of VPS data or {@code null} if not available. */
   @Nullable public final NalUnitUtil.H265VpsData vpsData;
 
+  public final float framerate;
+
   private HevcConfig(
       List<byte[]> initializationData,
       int nalUnitLengthFieldLength,
@@ -269,7 +280,9 @@ public final class HevcConfig {
       float pixelWidthHeightRatio,
       int maxNumReorderPics,
       @Nullable String codecs,
-      @Nullable NalUnitUtil.H265VpsData vpsData) {
+      @Nullable NalUnitUtil.H265VpsData vpsData,
+      final float framerate
+  ) {
     this.initializationData = initializationData;
     this.nalUnitLengthFieldLength = nalUnitLengthFieldLength;
     this.width = width;
@@ -284,5 +297,6 @@ public final class HevcConfig {
     this.maxNumReorderPics = maxNumReorderPics;
     this.codecs = codecs;
     this.vpsData = vpsData;
+    this.framerate = framerate;
   }
 }

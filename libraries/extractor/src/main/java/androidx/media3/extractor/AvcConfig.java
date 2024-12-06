@@ -64,6 +64,7 @@ public final class AvcConfig {
       @C.ColorRange int colorRange = Format.NO_VALUE;
       @C.ColorTransfer int colorTransfer = Format.NO_VALUE;
       float pixelWidthHeightRatio = 1;
+      float framerate = Format.NO_VALUE;
       @Nullable String codecs = null;
       // Max possible value defined in section E.2.1 of the H.264 spec.
       int maxNumReorderFrames = 16;
@@ -84,6 +85,7 @@ public final class AvcConfig {
         codecs =
             CodecSpecificDataUtil.buildAvcCodecString(
                 spsData.profileIdc, spsData.constraintsFlagsAndReservedZero2Bits, spsData.levelIdc);
+        framerate = spsData.framerate;
       }
 
       return new AvcConfig(
@@ -98,7 +100,9 @@ public final class AvcConfig {
           colorTransfer,
           maxNumReorderFrames,
           pixelWidthHeightRatio,
-          codecs);
+          codecs,
+          framerate
+      );
     } catch (ArrayIndexOutOfBoundsException e) {
       throw ParserException.createForMalformedContainer("Error parsing AVC config", e);
     }
@@ -158,6 +162,8 @@ public final class AvcConfig {
    */
   @Nullable public final String codecs;
 
+  public final float framerate;
+
   private AvcConfig(
       List<byte[]> initializationData,
       int nalUnitLengthFieldLength,
@@ -170,7 +176,9 @@ public final class AvcConfig {
       @C.ColorTransfer int colorTransfer,
       int maxNumReorderFrames,
       float pixelWidthHeightRatio,
-      @Nullable String codecs) {
+      @Nullable String codecs,
+      final float framerate
+  ) {
     this.initializationData = initializationData;
     this.nalUnitLengthFieldLength = nalUnitLengthFieldLength;
     this.width = width;
@@ -183,6 +191,7 @@ public final class AvcConfig {
     this.maxNumReorderFrames = maxNumReorderFrames;
     this.pixelWidthHeightRatio = pixelWidthHeightRatio;
     this.codecs = codecs;
+    this.framerate = framerate;
   }
 
   private static byte[] buildNalUnitForChild(ParsableByteArray data) {

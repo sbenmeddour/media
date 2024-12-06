@@ -2140,6 +2140,7 @@ public class MatroskaExtractor implements Extractor {
     @RequiresNonNull("codecId")
     @EnsuresNonNull("this.output")
     public void initializeOutput(ExtractorOutput output, int trackId) throws ParserException {
+      float framerate = Format.NO_VALUE;
       String mimeType;
       int maxInputSize = Format.NO_VALUE;
       @C.PcmEncoding int pcmEncoding = Format.NO_VALUE;
@@ -2171,6 +2172,7 @@ public class MatroskaExtractor implements Extractor {
           initializationData = avcConfig.initializationData;
           nalUnitLengthFieldLength = avcConfig.nalUnitLengthFieldLength;
           codecs = avcConfig.codecs;
+          framerate = avcConfig.framerate;
           break;
         case CODEC_ID_H265:
           mimeType = MimeTypes.VIDEO_H265;
@@ -2178,6 +2180,7 @@ public class MatroskaExtractor implements Extractor {
           initializationData = hevcConfig.initializationData;
           nalUnitLengthFieldLength = hevcConfig.nalUnitLengthFieldLength;
           codecs = hevcConfig.codecs;
+          framerate = hevcConfig.framerate;
           break;
         case CODEC_ID_FOURCC:
           Pair<String, @NullableType List<byte[]>> pair =
@@ -2410,6 +2413,7 @@ public class MatroskaExtractor implements Extractor {
           }
         }
         formatBuilder
+            .setFrameRate(framerate)
             .setWidth(width)
             .setHeight(height)
             .setPixelWidthHeightRatio(pixelWidthHeightRatio)

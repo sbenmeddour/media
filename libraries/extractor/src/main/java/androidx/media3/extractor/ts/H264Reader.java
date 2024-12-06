@@ -220,6 +220,7 @@ public final class H264Reader implements ElementaryStreamReader {
                   .setCodecs(codecs)
                   .setWidth(spsData.width)
                   .setHeight(spsData.height)
+                  .setFrameRate(spsData.framerate)
                   .setColorInfo(
                       new ColorInfo.Builder()
                           .setColorSpace(spsData.colorSpace)

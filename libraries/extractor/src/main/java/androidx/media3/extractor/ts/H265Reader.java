@@ -271,6 +271,7 @@ public final class H265Reader implements ElementaryStreamReader {
         .setPixelWidthHeightRatio(spsData.pixelWidthHeightRatio)
         .setMaxNumReorderSamples(spsData.maxNumReorderPics)
         .setInitializationData(Collections.singletonList(csdData))
+        .setFrameRate(spsData.framerate)
         .build();
   }
 

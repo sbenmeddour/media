@@ -156,6 +156,7 @@ public final class NalUnitUtil {
     public final @C.ColorRange int colorRange;
     public final @C.ColorTransfer int colorTransfer;
     public final int maxNumReorderFrames;
+    public final float framerate;
 
     public SpsData(
         int profileIdc,
@@ -177,7 +178,9 @@ public final class NalUnitUtil {
         @C.ColorSpace int colorSpace,
         @C.ColorRange int colorRange,
         @C.ColorTransfer int colorTransfer,
-        int maxNumReorderFrames) {
+        int maxNumReorderFrames,
+        final float framerate
+    ) {
       this.profileIdc = profileIdc;
       this.constraintsFlagsAndReservedZero2Bits = constraintsFlagsAndReservedZero2Bits;
       this.levelIdc = levelIdc;
@@ -198,6 +201,7 @@ public final class NalUnitUtil {
       this.colorRange = colorRange;
       this.colorTransfer = colorTransfer;
       this.maxNumReorderFrames = maxNumReorderFrames;
+      this.framerate = framerate;
     }
   }
 
@@ -396,6 +400,7 @@ public final class NalUnitUtil {
     public final @C.ColorSpace int colorSpace;
     public final @C.ColorRange int colorRange;
     public final @C.ColorTransfer int colorTransfer;
+    public final float framerate;
 
     public H265SpsData(
         H265NalHeader nalHeader,
@@ -410,7 +415,9 @@ public final class NalUnitUtil {
         int maxNumReorderPics,
         @C.ColorSpace int colorSpace,
         @C.ColorRange int colorRange,
-        @C.ColorTransfer int colorTransfer) {
+        @C.ColorTransfer int colorTransfer,
+        final float framerate
+    ) {
       this.nalHeader = nalHeader;
       this.profileTierLevel = profileTierLevel;
       this.chromaFormatIdc = chromaFormatIdc;
@@ -424,6 +431,7 @@ public final class NalUnitUtil {
       this.colorSpace = colorSpace;
       this.colorRange = colorRange;
       this.colorTransfer = colorTransfer;
+      this.framerate = framerate;
     }
   }
 
@@ -809,6 +817,8 @@ public final class NalUnitUtil {
     @C.ColorSpace int colorSpace = Format.NO_VALUE;
     @C.ColorRange int colorRange = Format.NO_VALUE;
     @C.ColorTransfer int colorTransfer = Format.NO_VALUE;
+
+    float framerate = Format.NO_VALUE;
     float pixelWidthHeightRatio = 1;
     // Initialize to the default value defined in section E.2.1 of the H.264 spec. Precisely
     // calculating MaxDpbFrames is complicated, so we short-circuit to the max value of 16 here
@@ -862,7 +872,10 @@ public final class NalUnitUtil {
         data.readUnsignedExpGolombCodedInt(); // chroma_sample_loc_type_bottom_field
       }
       if (data.readBit()) { // timing_info_present_flag
-        data.skipBits(65); // num_units_in_tick (32), time_scale (32), fixed_frame_rate_flag (1)
+        final int numUnitInTicks = data.readBits(32);
+        final int timeScale = data.readBits(32);
+        final boolean fixedFrameRateFlag = data.readBit();
+        framerate = timeScale / (2f * numUnitInTicks);
       }
       boolean nalHrdParametersPresent = data.readBit(); // nal_hrd_parameters_present_flag
       if (nalHrdParametersPresent) {
@@ -907,7 +920,9 @@ public final class NalUnitUtil {
         colorSpace,
         colorRange,
         colorTransfer,
-        maxNumReorderFrames);
+        maxNumReorderFrames,
+        framerate
+    );
   }
 
   /**
@@ -1586,8 +1601,11 @@ public final class NalUnitUtil {
     @C.ColorRange int colorRange = Format.NO_VALUE;
     @C.ColorTransfer int colorTransfer = Format.NO_VALUE;
     float pixelWidthHeightRatio = 1;
-    if (data.readBit()) { // vui_parameters_present_flag
-      if (data.readBit()) { // aspect_ratio_info_present_flag
+    final boolean vuiParametersPresentFlag = data.readBit(); //vui_parameters_present_flag
+    float framerate = Format.NO_VALUE;
+    if (vuiParametersPresentFlag) {
+      final boolean aspectRatioInfoPresentFlag = data.readBit(); //aspect_ratio_info_present_flag
+      if (aspectRatioInfoPresentFlag) {
         int aspectRatioIdc = data.readBits(8);
         if (aspectRatioIdc == NalUnitUtil.EXTENDED_SAR) {
           int sarWidth = data.readBits(16);
@@ -1614,8 +1632,7 @@ public final class NalUnitUtil {
           data.skipBits(8); // matrix_coeffs
 
           colorSpace = ColorInfo.isoColorPrimariesToColorSpace(colorPrimaries);
-          colorTransfer =
-              ColorInfo.isoTransferCharacteristicsToColorTransfer(transferCharacteristics);
+          colorTransfer = ColorInfo.isoTransferCharacteristicsToColorTransfer(transferCharacteristics);
         }
       } else if (vpsData != null && vpsData.videoSignalInfosAndIndices != null) {
         int videoSignalInfoIdx = vpsData.videoSignalInfosAndIndices.indices[layerIdInVps];
@@ -1637,22 +1654,49 @@ public final class NalUnitUtil {
         // represent fields, which means that frame height is double the picture height.
         frameHeight *= 2;
       }
-    }
+      try {
+        data.readBit(); //frame_field_info_present_flag
+        final boolean defaultDisplayWindowFlag = data.readBit(); //default_display_window_flag
+        if (defaultDisplayWindowFlag) {
+          data.readUnsignedExpGolombCodedInt(); //def_disp_win_left_offset
+          data.readUnsignedExpGolombCodedInt(); //def_disp_win_right_offset
+          data.readUnsignedExpGolombCodedInt(); //def_disp_win_top_offset
+          data.readUnsignedExpGolombCodedInt(); //def_disp_win_bottom_offset
+        }
+        final boolean vuiTimingInfoPresentFlag = data.readBit(); //vui_timing_info_present_flag
+        if (vuiTimingInfoPresentFlag) {
+          final int numUnitInTick = data.readBits(32);
+          final int timeScale = data.readBits(32);
+          final boolean vuiPocProportionalToTimingFlag = data.readBit();
+          if (vuiPocProportionalToTimingFlag) {
+            final int numTicksPocDiffOneMinus1 = data.readUnsignedExpGolombCodedInt() + 1;
+            framerate = (float) timeScale / (numTicksPocDiffOneMinus1 * numUnitInTick);
+          } else {
+            framerate = (float) timeScale / (numUnitInTick);
+          }
 
+          //infer framerate:
+        }
+      } catch (Exception ignored) {
+        //ignore
+      }
+    }
     return new H265SpsData(
-        nalHeader,
-        profileTierLevel,
-        chromaFormatIdc,
-        bitDepthLumaMinus8,
-        bitDepthChromaMinus8,
-        seqParameterSetId,
-        frameWidth,
-        frameHeight,
-        pixelWidthHeightRatio,
-        maxNumReorderPics,
-        colorSpace,
-        colorRange,
-        colorTransfer);
+        /* nalHeader = */ nalHeader,
+        /* profileTierLevel = */ profileTierLevel,
+        /* chromaFormatIdc = */ chromaFormatIdc,
+        /* bitDepthLumaMinus8 = */ bitDepthLumaMinus8,
+        /* bitDepthChromaMinus8 = */ bitDepthChromaMinus8,
+        /* seqParameterSetId = */ seqParameterSetId,
+        /* width = */ frameWidth,
+        /* height = */ frameHeight,
+        /* pixelWidthHeightRatio = */ pixelWidthHeightRatio,
+        /* maxNumReorderPics = */ maxNumReorderPics,
+        /* colorSpace = */ colorSpace,
+        /* colorRange = */ colorRange,
+        /* colorTransfer = */ colorTransfer,
+        /* framerate = */ framerate
+    );
   }
 
   /**
